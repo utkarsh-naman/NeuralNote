@@ -1,0 +1,120 @@
+# Resource object code (Python 3)
+# Created by: object code
+# Created by: The Resource Compiler for Qt version 6.10.0
+# WARNING! All changes made in this file will be lost!
+
+from PySide6 import QtCore
+
+qt_resource_data = b"\
+\x00\x00\x02}\
+<\
+?xml version=\x221.\
+0\x22 encoding=\x22utf\
+-8\x22?>\x0a<svg\x0a\x09vers\
+ion=\x221.1\x22\x0a\x09xmlns\
+=\x22http://www.w3.\
+org/2000/svg\x22\x0a\x09x\
+mlns:xlink=\x22http\
+://www.w3.org/19\
+99/xlink\x22\x0a\x09x=\x220%\
+\x22 y=\x220%\x22\x0a\x09width=\
+\x22100%\x22 height=\x221\
+00%\x22\x0a\x09viewBox=\x220\
+ 0 100.0 100.0\x22\x0a\
+\x09enable-backgrou\
+nd=\x22new 0 0 100.\
+0 100.0\x22\x0a\x09xml:sp\
+ace=\x22preserve\x22>\x0a\
+\x09<path\x0a\x09\x09fill=\x22#\
+F0F0F0\x22\x0a\x09\x09stroke\
+=\x22#000000\x22\x0a\x09\x09fil\
+l-opacity=\x221.000\
+\x22\x0a\x09\x09stroke-opaci\
+ty=\x220.004\x22\x0a\x09\x09fil\
+l-rule=\x22nonzero\x22\
+\x0a\x09\x09stroke-width=\
+\x221.0015357\x22\x0a\x09\x09st\
+roke-linejoin=\x22m\
+iter\x22\x0a\x09\x09stroke-l\
+inecap=\x22square\x22\x0a\
+\x09\x09d=\x22M50.52,25.9\
+3C64.35,25.93,75\
+.56,37.14,75.56,\
+50.96C75.56,64.7\
+9,64.35,76.00,50\
+.52,76.00C36.69,\
+76.00,25.48,64.7\
+9,25.48,50.96C25\
+.48,37.14,36.69,\
+25.93,50.52,25.9\
+3z\x22/>\x0a</svg>\
+\x00\x00\x02\x0a\
+<\
+?xml version=\x221.\
+0\x22 encoding=\x22utf\
+-8\x22?>\x0a<svg\x0a\x09vers\
+ion=\x221.1\x22\x0a\x09xmlns\
+=\x22http://www.w3.\
+org/2000/svg\x22\x0a\x09x\
+mlns:xlink=\x22http\
+://www.w3.org/19\
+99/xlink\x22\x0a\x09x=\x220%\
+\x22 y=\x220%\x22\x0a\x09width=\
+\x22100%\x22 height=\x221\
+00%\x22\x0a\x09viewBox=\x220\
+ 0 100.0 100.0\x22\x0a\
+\x09enable-backgrou\
+nd=\x22new 0 0 100.\
+0 100.0\x22\x0a\x09xml:sp\
+ace=\x22preserve\x22>\x0a\
+\x09<path\x0a\x09\x09fill=\x22#\
+FFFFFF\x22\x0a\x09\x09stroke\
+=\x22#F0F0F0\x22\x0a\x09\x09fil\
+l-opacity=\x221.000\
+\x22\x0a\x09\x09stroke-opaci\
+ty=\x221.000\x22\x0a\x09\x09fil\
+l-rule=\x22nonzero\x22\
+\x0a\x09\x09stroke-width=\
+\x2215.5\x22\x0a\x09\x09stroke-\
+linejoin=\x22miter\x22\
+\x0a\x09\x09stroke-lineca\
+p=\x22round\x22\x0a\x09\x09d=\x22M\
+12.88,88.46L83.5\
+1,17.49M13.32,17\
+.67L83.94,88.63\x22\
+/>\x0a</svg>\
+"
+
+qt_resource_name = b"\
+\x00\x05\
+\x00o\xa6S\
+\x00i\
+\x00c\x00o\x00n\x00s\
+\x00\x07\
+\x0bgZ\x07\
+\x00d\
+\x00o\x00t\x00.\x00s\x00v\x00g\
+\x00\x0a\
+\x0ah\x08\x07\
+\x00c\
+\x00r\x00o\x00s\x00s\x002\x00.\x00s\x00v\x00g\
+"
+
+qt_resource_struct = b"\
+\x00\x00\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x01\
+\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x02\
+\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00$\x00\x00\x00\x00\x00\x01\x00\x00\x02\x81\
+\x00\x00\x01\x9a\x10_~\x11\
+\x00\x00\x00\x10\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\
+\x00\x00\x01\x9a\x10\xf5\xce\x07\
+"
+
+def qInitResources():
+    QtCore.qRegisterResourceData(0x03, qt_resource_struct, qt_resource_name, qt_resource_data)
+
+def qCleanupResources():
+    QtCore.qUnregisterResourceData(0x03, qt_resource_struct, qt_resource_name, qt_resource_data)
+
+qInitResources()

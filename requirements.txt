@@ -1,0 +1,5 @@
+PyQt6
+pyqt6-tools
+
+# run this commandin the new venv
+# pip install PyQt6==6.4.2 PyQt6-Qt6==6.4.3 pyqt6-tools==6.4.2.3.3 pyqt6-plugins==6.4.2.2.3 qt6-tools==6.4.3.1.3 qt6-applications==6.4.3.2.3
