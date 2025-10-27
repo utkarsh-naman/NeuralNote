@@ -11,5 +11,6 @@ def close_tab(tab_widget: QTabWidget, index: int):
     if widget:
         # Remove the tab from the tab widget
         tab_widget.removeTab(index)
-        # Delete the widget to free up memory
         widget.deleteLater()
+
+

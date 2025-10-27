@@ -2,34 +2,29 @@ import sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTextEdit, QStatusBar, QLabel, QTabWidget, QWidget
 )
-# --- ADD THESE IMPORTS ---
 from PyQt6.QtGui import QFont, QIcon, QAction, QKeySequence
-# --- MODIFIED IMPORT ---
 from PyQt6.QtCore import Qt
-# Import our new function
+
 from ops.file.new_tab import create_new_tab
 from ops.file.new_window import create_new_window
 from ops.file.exit import exit_app
-# --- END IMPORTS ---
+# --- Import the refactored open_file ---
+from ops.file.open import open_file 
+
 from ui.custom_tab_bar import CustomTabBar
 
-
-
 class MainWindow(QMainWindow):
-    """
-    Main application window for NeuralNote.
-    
-    Inherits from QMainWindow to provide a standard application skeleton
-    with menu bar, status bar, and central widget.
-    """
     def __init__(self):
         super().__init__()
 
-        # --- Window Properties ---
         self.setWindowTitle("NeuralNote")
         self.resize(1000, 700) 
         
-        # --- Theme (Corrected) ---
+        # --- ADD STATE TO TRACK OPEN FILES ---
+        # This maps QTextEdit widgets to their filepaths
+        self.open_files = {}
+        # --- END ADD ---
+        
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #2b2b2b;
@@ -86,161 +81,136 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # --- Create UI Components ---
-        # 1. Create the menu bar
         self._createMenuBar()
-        # 2. Create the status bar AND its labels first
         self._createStatusBar()
-        # 3. NOW create the tabs, which will connect signals to the status bar
         self._createTabs()
-        # 4. Call this once at the end to set the initial state correctly
         self._updateStatusBar()
 
     def _createTabs(self):
-        """
-        Create the central QTabWidget for holding text editors.
-        """
         self.tab_widget = QTabWidget()
-        self.tab_widget.setTabsClosable(True) # Allow tabs to be closed
-        self.tab_widget.setMovable(True)      # Allow tabs to be dragged
+        self.tab_widget.setTabsClosable(True)
 
-
-        # Set custom tab bar
         custom_bar = CustomTabBar()
         self.tab_widget.setTabBar(custom_bar)
         self.tab_widget.setMovable(True)
-        # --- Signal Connections for Tabs ---
+        
+        # Connect signals
         custom_bar.tabCloseRequested.connect(self._closeTab)
         self.tab_widget.currentChanged.connect(custom_bar.updateAllTabIcons)
-        # When user switches tabs, update status bar
         self.tab_widget.currentChanged.connect(self._updateStatusBar)
         
-        # When user clicks 'x' on a tab
-        # This connection *IS* correct and will work once
-        # the QSS conflict is removed.
-        self.tab_widget.tabCloseRequested.connect(self._closeTab)
-
-        # --- MODIFIED LINE ---
-        # Create the first tab using our new imported function
+        # Create the first tab
         create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
-        # --- END MODIFICATION ---
-
-        # Set the tab widget as the central content
         self.setCentralWidget(self.tab_widget)
 
     def _closeTab(self, index: int):
-        """
-        Closes the tab at the given index.
-        (We'll add "do you want to save?" logic here later)
-        """
-        # Get the widget (QTextEdit) in the tab
         widget = self.tab_widget.widget(index)
         
         if widget:
-            # Remove the tab from the tab widget
+            # --- REMOVE FILE FROM TRACKING ---
+            if widget in self.open_files:
+                del self.open_files[widget]
+            # --- END ADD ---
+            
             self.tab_widget.removeTab(index)
-            # Delete the widget to free up memory
             widget.deleteLater()
 
     def _createMenuBar(self):
-        """
-        Create the main menu bar (File, Edit, View).
-        """
         menu_bar = self.menuBar()
 
         file_menu = menu_bar.addMenu("&File")
-        # --- ADD NEW TAB ACTION ---
+        
+        # --- New Tab Action ---
         new_tab_action = QAction("&New Tab", self)
-        # Create a list of QKeySequence objects
         shortcuts = [
-            QKeySequence.StandardKey.New,  # Ctrl+N (or Cmd+N on Mac)
+            QKeySequence.StandardKey.New,  # Ctrl+N
             QKeySequence("Ctrl+T")         # Ctrl+T
         ]
-        new_tab_action.setShortcuts(shortcuts) # Ctrl+N
+        new_tab_action.setShortcuts(shortcuts) 
         new_tab_action.triggered.connect(self.on_new_tab_action)
-
-        
         file_menu.addAction(new_tab_action)
 
-        # --- ADD NEW WINDOW ACTION ---
+        # --- New Window Action ---
         new_window_action = QAction("New &Window", self)
         new_window_action.setShortcut(QKeySequence("Ctrl+Shift+N"))
         new_window_action.triggered.connect(self.on_new_window_action)
         file_menu.addAction(new_window_action)
+
+        # --- ADD OPEN ACTION ---
+        open_action = QAction("&Open...", self)
+        open_action.setShortcut(QKeySequence.StandardKey.Open) # Ctrl+O
+        # Connect to the new slot
+        open_action.triggered.connect(self.on_open_file_action)
+        file_menu.addAction(open_action)
         # --- END ADD ---
 
-        # --- ADD SEPARATOR AND EXIT ACTION ---
+        # --- Separator and Exit ---
         file_menu.addSeparator()
-
         exit_action = QAction("E&xit", self)
         exit_action.setShortcut(QKeySequence.StandardKey.Quit) # Ctrl+Q
         exit_action.triggered.connect(exit_app)
         file_menu.addAction(exit_action)
-        # --- END ADD ---
 
         edit_menu = menu_bar.addMenu("&Edit")
         # view_menu = menu_bar.addMenu("&View")
     
     def on_new_tab_action(self):
-        """
-        Slot that is called when the 'New Tab' menu action is triggered.
-        """
         create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
 
     def on_new_window_action(self):
-        """
-        Slot that is called when the 'New Window' menu action is triggered.
-        """
-        # Pass the class itself (MainWindow) to the function
         create_new_window(MainWindow)
 
+    # --- ADD THIS SLOT ---
+    def on_open_file_action(self):
+        """
+        Slot to handle the 'Open' menu action.
+        Calls the imported open_file function.
+        """
+        # Pass the MainWindow instance (self) to the function
+        open_file(self)
+    # --- END ADD ---
+    
+    # --- ADD THIS HELPER METHOD ---
+    def current_editor(self) -> QTextEdit | None:
+        """Helper to get the current text editor widget."""
+        widget = self.tab_widget.currentWidget()
+        if isinstance(widget, QTextEdit):
+            return widget
+        return None
+    # --- END ADD ---
+
     def _createStatusBar(self):
-        """
-        Create the status bar and store labels as instance attributes.
-        """
+        # ... (no changes here) ...
         status_bar = QStatusBar()
         self.setStatusBar(status_bar)
-
-        # Create labels and store them
         self.cursor_pos_label = QLabel("Ln 1, Col 1")
         self.char_count_label = QLabel("0 characters")
         self.zoom_label = QLabel("100%")
         self.line_ending_label = QLabel("Windows (CRLF)")
         self.encoding_label = QLabel("UTF-8")
-
-        # Add widgets to the status bar
         status_bar.addPermanentWidget(self.cursor_pos_label)
         status_bar.addPermanentWidget(self.char_count_label)
         status_bar.addPermanentWidget(self.zoom_label)
         status_bar.addPermanentWidget(self.line_ending_label)
         status_bar.addPermanentWidget(self.encoding_label)
 
+
     def _updateStatusBar(self):
-        """
-        Slot to update status bar labels based on the current editor's state.
-        """
-        # Get the currently active text editor
-        current_editor = self.tab_widget.currentWidget()
-        
-        # Check if it's a QTextEdit (it might be None if all tabs are closed)
-        if isinstance(current_editor, QTextEdit):
-            # --- Get Cursor Position ---
+        # ... (no changes here) ...
+        current_editor = self.current_editor() # Use new helper
+        if current_editor:
             cursor = current_editor.textCursor()
             line = cursor.blockNumber() + 1
             col = cursor.columnNumber() + 1
             self.cursor_pos_label.setText(f"Ln {line}, Col {col}")
-            
-            # --- Get Character Count ---
             char_count = len(current_editor.toPlainText())
             self.char_count_label.setText(f"{char_count} characters")
             
-            # --- Update other labels (for now, they are static) ---
             self.zoom_label.setText("100%")
             self.line_ending_label.setText("Windows (CRLF)")
             self.encoding_label.setText("UTF-8")
         
         else:
-            # No tabs open, reset labels to default
             self.cursor_pos_label.setText("Ln 1, Col 1")
             self.char_count_label.setText("0 characters")
             self.zoom_label.setText("100%")
@@ -248,9 +218,12 @@ class MainWindow(QMainWindow):
             self.encoding_label.setText("UTF-8")
 
 
-# --- Main Application Execution ---
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # Don't quit when a window is closed
+    app.setQuitOnLastWindowClosed(False)
+    
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
