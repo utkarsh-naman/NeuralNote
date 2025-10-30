@@ -13,6 +13,13 @@ from ops.file.save import save_file, save_file_as, save_all_files
 
 from ops.file.close_tab import close_tab
 
+from ops.edit.undo_redo import undo_action, redo_action
+from ops.edit.delete_ops import delete_selected, delete_current_line
+from ops.edit.select_ops import select_all
+from ops.edit.cut import cut_text
+from ops.edit.copy import copy_text
+from ops.edit.paste import paste_text
+from ops.edit.goto import goto_line
 
 from ui.custom_tab_bar import CustomTabBar
 
@@ -123,6 +130,12 @@ class MainWindow(QMainWindow):
             self.tab_widget.removeTab(index)
             widget.deleteLater()
 
+    # def current_editor(self) -> QTextEdit | None:
+    #     widget = self.tab_widget.currentWidget()
+    #     if isinstance(widget, QTextEdit):
+    #         return widget
+    #     return None
+
     def _createMenuBar(self):
         menu_bar = self.menuBar()
 
@@ -186,7 +199,62 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(exit_app)
         file_menu.addAction(exit_action)
 
+        # ---------- EDIT MENU ----------
         edit_menu = menu_bar.addMenu("&Edit")
+
+        # Undo / Redo
+        undo_act = QAction("Undo", self)
+        undo_act.setShortcut(QKeySequence.StandardKey.Undo)
+        undo_act.triggered.connect(lambda: undo_action(self))
+        edit_menu.addAction(undo_act)
+
+        redo_act = QAction("Redo", self)
+        redo_act.setShortcut(QKeySequence.StandardKey.Redo)
+        redo_act.triggered.connect(lambda: redo_action(self))
+        edit_menu.addAction(redo_act)
+
+        edit_menu.addSeparator()
+
+        cut_action = QAction("Cut", self)
+        cut_action.setShortcut(QKeySequence.StandardKey.Cut) # Ctrl+X
+        cut_action.triggered.connect(lambda: cut_text(self))
+        edit_menu.addAction(cut_action)
+
+        copy_action = QAction("Copy", self)
+        copy_action.setShortcut(QKeySequence.StandardKey.Copy) # Ctrl+C
+        copy_action.triggered.connect(lambda: copy_text(self))
+        edit_menu.addAction(copy_action)
+
+        paste_action = QAction("Paste", self)
+        paste_action.setShortcut(QKeySequence.StandardKey.Paste) # Ctrl+V
+        paste_action.triggered.connect(lambda: paste_text(self))
+        edit_menu.addAction(paste_action)
+
+        # Delete
+        delete_sel_act = QAction("Delete Selection", self)
+        delete_sel_act.setShortcut(QKeySequence("Del"))
+        delete_sel_act.triggered.connect(lambda: delete_selected(self))
+        edit_menu.addAction(delete_sel_act)
+
+        edit_menu.addSeparator()
+
+        goto_action = QAction("Go to Line...", self)
+        goto_action.setShortcut(QKeySequence("Ctrl+G")) # Ctrl+G
+        goto_action.triggered.connect(lambda: goto_line(self))
+        edit_menu.addAction(goto_action)
+
+        delete_line_act = QAction("Delete Current Line", self)
+        delete_line_act.setShortcut(QKeySequence("Ctrl+Shift+D"))
+        delete_line_act.triggered.connect(lambda: delete_current_line(self))
+        edit_menu.addAction(delete_line_act)
+
+        edit_menu.addSeparator()
+
+        # Select All
+        select_all_act = QAction("Select All", self)
+        select_all_act.setShortcut(QKeySequence.StandardKey.SelectAll)
+        select_all_act.triggered.connect(lambda: select_all(self))
+        edit_menu.addAction(select_all_act)
     
     def on_new_tab_action(self):
         # create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
@@ -195,16 +263,6 @@ class MainWindow(QMainWindow):
 
     def on_new_window_action(self):
         create_new_window(MainWindow)
-
-    # def closeEvent(self, event):
-    #     from ops.file.close_window import close_window
-    #     before_count = self.tab_widget.count()
-    #     close_window(self)
-    #     after_count = self.tab_widget.count()
-    #     if before_count == after_count:
-    #         event.ignore()  # User canceled
-    #     else:
-    #         event.accept()
 
     def closeEvent(self, event):
         """Prompt to save unsaved tabs before closing the window."""
