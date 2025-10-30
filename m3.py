@@ -13,6 +13,11 @@ from ops.file.save import save_file, save_file_as, save_all_files
 
 from ops.file.close_tab import close_tab
 
+from ops.edit.cut import cut_text
+from ops.edit.copy import copy_text
+from ops.edit.paste import paste_text
+from ops.edit.goto import goto_line
+
 
 from ui.custom_tab_bar import CustomTabBar
 
@@ -186,7 +191,30 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(exit_app)
         file_menu.addAction(exit_action)
 
+        # ----- EDIT MENU -----
         edit_menu = menu_bar.addMenu("&Edit")
+        cut_action = QAction("Cut", self)
+        cut_action.setShortcut(QKeySequence.StandardKey.Cut) # Ctrl+X
+        cut_action.triggered.connect(lambda: cut_text(self))
+        edit_menu.addAction(cut_action)
+
+        copy_action = QAction("Copy", self)
+        copy_action.setShortcut(QKeySequence.StandardKey.Copy) # Ctrl+C
+        copy_action.triggered.connect(lambda: copy_text(self))
+        edit_menu.addAction(copy_action)
+
+        paste_action = QAction("Paste", self)
+        paste_action.setShortcut(QKeySequence.StandardKey.Paste) # Ctrl+V
+        paste_action.triggered.connect(lambda: paste_text(self))
+        edit_menu.addAction(paste_action)
+
+        edit_menu.addSeparator()
+
+        goto_action = QAction("Go to Line...", self)
+        goto_action.setShortcut(QKeySequence("Ctrl+G")) # Ctrl+G
+        goto_action.triggered.connect(lambda: goto_line(self))
+        edit_menu.addAction(goto_action)
+        # ----- END ADD -----
     
     def on_new_tab_action(self):
         # create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
