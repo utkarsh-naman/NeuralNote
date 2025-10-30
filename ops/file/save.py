@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import QMessageBox, QFileDialog
 
 from PyQt6.QtWidgets import QMessageBox, QFileDialog
+from ops.file.recent import add_recent_file
+
 
 def save_file(self):
     """Saves the current file. Opens 'Save As' if it's a new file."""
@@ -16,6 +18,8 @@ def save_file(self):
 
             clean_title = filepath.split('/')[-1]
             self.tab_widget.setTabText(self.tab_widget.currentIndex(), clean_title)
+
+            add_recent_file(clean_title, filepath)
             return True  # ✅ success
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save file: {e}")
@@ -43,6 +47,11 @@ def save_file_as(self):
     self.open_files[editor] = filepath
     return save_file(self)  # ✅ return True or False depending on success
 
+    if success:
+        add_recent_file(os.path.basename(filepath), filepath)
+
+    return success
+
 
 def save_all_files(self):
     """Saves all open files."""
@@ -58,6 +67,8 @@ def save_all_files(self):
                 # self.tab_widget.setTabText(self.tab_widget.currentIndex(), clean_title)
                 self.tab_widget.setTabText(i, clean_title)
 
+                add_recent_file(clean_title, filepath)
+                
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not save file {filepath}: {e}")
         # Note: This simple implementation doesn't prompt "Save As" for untitled files.

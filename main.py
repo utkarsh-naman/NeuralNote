@@ -10,8 +10,8 @@ from ops.file.new_window import create_new_window
 from ops.file.exit import exit_app
 from ops.file.open import open_file
 from ops.file.save import save_file, save_file_as, save_all_files
-
 from ops.file.close_tab import close_tab
+from ops.file.recent import show_recent_files_menu
 
 from ops.edit.undo_redo import undo_action, redo_action
 from ops.edit.delete_ops import delete_selected, delete_current_line
@@ -163,7 +163,9 @@ class MainWindow(QMainWindow):
         open_action.setShortcut(QKeySequence("Ctrl+O"))
         open_action.triggered.connect(self.on_open_file_action)
         file_menu.addAction(open_action)
-
+        file_menu.addSeparator()
+        show_recent_files_menu(self, file_menu)
+        
         file_menu.addSeparator()
         
         save_action = QAction("Save", self)
