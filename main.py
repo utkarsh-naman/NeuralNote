@@ -1,9 +1,12 @@
 import sys
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QTextEdit, QStatusBar, QLabel, QTabWidget, QWidget
+    QApplication, QMainWindow, QTextEdit, QStatusBar, QLabel, QTabWidget, QWidget, QMenu, QMenuBar, QPushButton, QHBoxLayout, QToolButton
 )
-from PyQt6.QtGui import QFont, QIcon, QAction, QKeySequence
-from PyQt6.QtCore import Qt
+
+from PyQt6.QtGui import QFont, QIcon, QAction, QKeySequence, QTextCharFormat, QTextCursor
+from PyQt6.QtCore import Qt, QTimer # 🌟 ADD QT.QTimer HERE
+
+
 
 from ops.file.new_tab import create_new_tab
 from ops.file.new_window import create_new_window
@@ -21,17 +24,114 @@ from ops.edit.copy import copy_text
 from ops.edit.paste import paste_text
 from ops.edit.goto import goto_line
 
+from ops.edit.find import FindReplaceWidget
+
 from ui.custom_tab_bar import CustomTabBar
 
+
+
+# NLPPPPPPPPPPPPPPPPPPPPPPPPMKBPPPPPPPPPPPPPPPP
+from utils.settings_manager import settings_manager
+from nlp.grammar_checker import GrammarChecker
+from ui.custom_tab_bar import CustomTabBar      
+
+
+# --- ADD IMPORTS ---
+import ai.database as db
+from ai.select_model import create_ai_menu
+from ai.prompt_box import PromptDialog
+# --- END ADD ---
+
+
+
+class GrammarTextEdit(QTextEdit):
+    """Subclassed QTextEdit to handle custom context menu and error storage."""
+    def __init__(self, parent=None, main_window=None):
+        super().__init__(parent)
+        self.main_window = main_window
+        self.grammar_errors = [] # Stores: (start_pos, end_pos, suggestion)
+
+        # Re-implement the standard context menu handler
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()
+
+        # Find cursor position in the block (line)
+        cursor = self.cursorForPosition(event.pos())
+        block = cursor.block()
+        position_in_block = cursor.position() - block.position()
+
+        error_found = False
+        suggestion = None
+        start, end = -1, -1
+
+        # Check if the click is within any highlighted error span
+        for e_start, e_end, sugg in self.grammar_errors:
+            if e_start <= position_in_block < e_end:
+                error_found = True
+                suggestion = sugg
+                start, end = e_start, e_end
+                break
+
+        if error_found:
+            menu.addSeparator()
+
+            # Action 1: Accept suggestion
+            accept_action = menu.addAction(f"Correct: '{suggestion}'")
+            accept_action.triggered.connect(lambda: self.accept_grammar_suggestion(block, start, end, suggestion))
+
+            # Action 2: Decline suggestion
+            decline_action = menu.addAction("Ignore Correction")
+            decline_action.triggered.connect(lambda: self.decline_grammar_suggestion(block, start, end))
+
+        menu.exec(event.globalPos())
+
+    def accept_grammar_suggestion(self, block, start, end, suggestion):
+        """Applies the correction and removes the error highlight."""
+        cursor = self.textCursor()
+        abs_start_pos = block.position() + start
+        abs_end_pos = block.position() + end
+
+        cursor.setPosition(abs_start_pos)
+        cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, abs_end_pos - abs_start_pos)
+
+        # Replace the text
+        cursor.insertText(suggestion)
+
+        # Update error list and trigger re-highlight
+        self.main_window._remove_grammar_error(start, end)
+        self.main_window._apply_grammar_highlights(self)
+
+    def decline_grammar_suggestion(self, block, start, end):
+        """Removes the highlight without changing text."""
+        self.main_window._remove_grammar_error(start, end)
+        self.main_window._apply_grammar_highlights(self)
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # --- ADD DB INIT ---
+        db.init_db()
+        # --- END ADD ---
+        self.prompt_dialog = None
+
         self.setWindowTitle("NeuralNote")
         self.resize(1000, 700) 
         self.open_files = {} # To track file paths for saving
+
+        self.settings = settings_manager
+        self.grammar_checker = GrammarChecker()
+        if self.settings.get_setting('nlp_enabled') == '1':
+            self.grammar_checker.load_model()
+
+        # 🌟 NEW: Debouncer/Throttler for live check (important for performance)
+        self.check_timer = QTimer(self)
+        self.check_timer.setSingleShot(True)
+        self.check_timer.timeout.connect(self._check_current_line_for_grammar)
+
+
+
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #2b2b2b;
@@ -87,11 +187,13 @@ class MainWindow(QMainWindow):
                 font-size: 11pt;
             }
         """)
-
+        self.find_widget = FindReplaceWidget(self)
         self._createMenuBar()
         self._createStatusBar()
         self._createTabs()
         self._updateStatusBar()
+
+        
 
     def _mark_dirty(self, editor):
         index = self.tab_widget.indexOf(editor)
@@ -115,14 +217,27 @@ class MainWindow(QMainWindow):
         self.tab_widget.tabCloseRequested.connect(lambda i: close_tab(self, self.tab_widget, i))
         self.tab_widget.currentChanged.connect(custom_bar.updateAllTabIcons)
         self.tab_widget.currentChanged.connect(self._updateStatusBar)
-        # self.tab_widget.tabCloseRequested.connect(self._closeTab)
-        # create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
-        # self.setCentralWidget(self.tab_widget)
+        
+        # -------------------------------------------------------------
+        # 🎯 CONSOLIDATED: Create ONE tab using the custom editor and 
+        # connect ALL necessary signals (dirty mark and NLP check)
+        # -------------------------------------------------------------
+        editor = create_new_tab(
+            self.tab_widget, 
+            self._updateStatusBar, 
+            "Untitled",
+            editor_class=GrammarTextEdit, # The custom editor subclass
+            main_window=self # The self reference (MainWindow)
+        )
+        
+        # Connect the 'dirty' marker (for saving)
+        editor.textChanged.connect(lambda e=editor: self._mark_dirty(e)) 
+        
+        # Connect the NLP feature trigger (using the performance-throttled scheduler)
+        editor.textChanged.connect(self._schedule_grammar_check)
 
-        editor = create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
-        editor.textChanged.connect(lambda e=editor: self._mark_dirty(e))
         self.setCentralWidget(self.tab_widget)
-
+    
     def _closeTab(self, index: int):
         widget = self.tab_widget.widget(index)
         
@@ -238,6 +353,13 @@ class MainWindow(QMainWindow):
         delete_sel_act.triggered.connect(lambda: delete_selected(self))
         edit_menu.addAction(delete_sel_act)
 
+        # --- ADD THIS BLOCK ---
+        find_action = QAction("Find/Replace...", self)
+        find_action.setShortcut(QKeySequence.StandardKey.Find) # Ctrl+F
+        find_action.triggered.connect(self.find_widget.show)
+        edit_menu.addAction(find_action)
+        # --- END ADD ---
+
         edit_menu.addSeparator()
 
         goto_action = QAction("Go to Line...", self)
@@ -257,7 +379,95 @@ class MainWindow(QMainWindow):
         select_all_act.setShortcut(QKeySequence.StandardKey.SelectAll)
         select_all_act.triggered.connect(lambda: select_all(self))
         edit_menu.addAction(select_all_act)
+
+        # ... (existing menus: File, Edit)
+
+        # ---------- SETTINGS MENU ----------
+        # settings_menu = menu_bar.addMenu("&Settings")
+        # --- ADD THIS BLOCK TO MOVE SETTINGS TO THE RIGHT ---
+        
+        # 1. Create a new QWidget container to live in the corner
+        corner_container = QWidget(self)
+        corner_layout = QHBoxLayout(corner_container)
+        corner_layout.setContentsMargins(0, 0, 0, 0)
+        corner_layout.setSpacing(0) # Pack buttons tightly
+        
+        # --- ADD PROMPT BUTTON (YELLOW CIRCLE) ---
+        self.prompt_button = QPushButton("●")
+        # Style the button to look like the image
+        self.prompt_button.setStyleSheet("""
+            QPushButton {
+                color: #c2a042; /* Yellow */
+                font-size: 20px;
+                font-weight: bold;
+                border: none;
+                background: none;
+                padding-top: -4px; /* Adjust vertical alignment */
+            }
+            QPushButton:hover {
+                color: #d6b55d; /* Lighter yellow */
+            }
+            QPushButton:pressed {
+                color: #a08021; /* Darker yellow */
+            }
+        """)
+        self.prompt_button.setFixedSize(24, 24)
+        self.prompt_button.setToolTip("Generate AI Content")
+        self.prompt_button.clicked.connect(self.on_show_prompt_box)
+        # Add the button to the corner layout
+        corner_layout.addWidget(self.prompt_button)
+        
+        
+        # 2. Create the AI Menu using our new function
+        self.ai_menu = create_ai_menu(self)
+        
+        # 3. Create a ToolButton to host the AI Menu
+        ai_button = QToolButton(self)
+        ai_button.setText("AI")
+        ai_button.setMenu(self.ai_menu)
+        ai_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # Style it to look like a flat menu bar item
+        ai_button.setStyleSheet("QToolButton { border: none; padding: 0px 5px; } QToolButton::menu-indicator { image: none; }") 
+        corner_layout.addWidget(ai_button)
+
+
+        # 4. Create the Settings QMenu
+        settings_menu = QMenu("&Settings", self)
+        
+        # 5. Add actions to the Settings menu
+        nlp_toggle_action = QAction("Enable Grammar Check", self)
+        nlp_toggle_action.setCheckable(True)
+
+        # Set initial state from SQLite
+        initial_state = self.settings.get_setting('nlp_enabled') == '1'
+        nlp_toggle_action.setChecked(initial_state)
+
+        nlp_toggle_action.triggered.connect(self.on_nlp_toggle)
+        settings_menu.addAction(nlp_toggle_action)
     
+        # 6. Create a ToolButton to host the Settings Menu
+        settings_button = QToolButton(self)
+        settings_button.setText("Settings")
+        settings_button.setMenu(settings_menu)
+        settings_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # Style it to look like a flat menu bar item
+        settings_button.setStyleSheet("QToolButton { border: none; padding: 0px 5px; } QToolButton::menu-indicator { image: none; }")
+        corner_layout.addWidget(settings_button)
+        
+        # 7. Set the corner CONTAINER as the main bar's corner widget
+        menu_bar.setCornerWidget(corner_container, Qt.Corner.TopRightCorner)
+
+
+    def on_show_prompt_box(self):
+        """Creates (if needed) and shows the PromptDialog."""
+        if not self.prompt_dialog:
+            self.prompt_dialog = PromptDialog(self)
+            
+        self.prompt_dialog.show()
+        # Ensure it pops up on top
+        self.prompt_dialog.activateWindow()
+        self.prompt_dialog.raise_()
+
     def on_new_tab_action(self):
         # create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
         editor = create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
@@ -299,6 +509,10 @@ class MainWindow(QMainWindow):
             event.accept()
         else:
             event.ignore()
+
+
+        if event.isAccepted():
+            self.settings.close() # Close SQLite connection
 
 
     def on_open_file_action(self):
@@ -350,6 +564,127 @@ class MainWindow(QMainWindow):
             self.zoom_label.setText("100%")
             self.line_ending_label.setText("Windows (CRLF)")
             self.encoding_label.setText("UTF-8")
+
+
+    # NLPPPPPPPPPPPPPPPPPPPPPPPPPPPMKBPPPPPPPPPPPPPPP
+    # Inside MainWindow class
+
+    def on_nlp_toggle(self, checked):
+        """Toggles the NLP feature and loads/unloads the model."""
+        state = '1' if checked else '0'
+        self.settings.set_setting('nlp_enabled', state)
+
+        if checked:
+            self.grammar_checker.load_model()
+        else:
+            self.grammar_checker.unload_model()
+            # Clear all highlights in the current editor immediately
+            current_editor = self.current_editor()
+            if current_editor and isinstance(current_editor, GrammarTextEdit):
+                current_editor.grammar_errors = []
+                current_editor.setExtraSelections([])
+
+
+    def _schedule_grammar_check(self):
+        """Uses a QTimer to delay the grammar check, preventing lag while typing."""
+        if self.settings.get_setting('nlp_enabled') == '1':
+            # Restart the timer. Check will run 500ms after the last keypress.
+            self.check_timer.start(500) 
+
+
+    def _check_current_line_for_grammar(self):
+        """The core function that runs the NLP model on the current line."""
+        current_editor = self.current_editor()
+
+        if not current_editor or self.settings.get_setting('nlp_enabled') == '0':
+            return
+
+        cursor = current_editor.textCursor()
+        current_block = cursor.block()
+        line_text = current_block.text()
+
+        if not line_text.strip():
+            current_editor.grammar_errors = []
+            self._apply_grammar_highlights(current_editor)
+            return
+
+        # 1. Get errors from NLP (using the Gramformer.get_edits method now)
+        # Returns: (start_index, end_index, error_text, suggestion)
+        errors = self.grammar_checker.check_line(line_text)
+
+        # 2. Store error data on the editor instance for the context menu
+        final_errors = []
+        for edit_tuple in errors:
+            try:
+                # Manually unpack and cast everything to ensure no string remains in the index positions
+                start_index = int(edit_tuple[0])
+                end_index = int(edit_tuple[1])
+                suggestion = str(edit_tuple[3]) # This is the suggestion text
+
+                final_errors.append((start_index, end_index, suggestion))
+            except Exception as e:
+                # If the tuple is malformed, we simply skip the error
+                continue
+
+        current_editor.grammar_errors = final_errors
+
+        # 3. Apply the visual highlights
+        self._apply_grammar_highlights(current_editor)
+
+
+    def _apply_grammar_highlights(self, editor: GrammarTextEdit):
+        """Applies the yellow wave underline based on errors stored on the editor."""
+        selections = []
+        error_format = QTextCharFormat()
+        error_format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
+        error_format.setUnderlineColor(Qt.GlobalColor.yellow)
+
+        current_block = editor.textCursor().block()
+
+        # Iterate through stored errors and create selections
+        for start_index, end_index, _ in editor.grammar_errors:
+            selection = QTextEdit.ExtraSelection()
+            selection.cursor = editor.textCursor()
+
+            # Position the cursor for the selection within the current block
+            abs_start_pos = current_block.position() + start_index
+
+            selection.cursor.setPosition(abs_start_pos)
+            selection.cursor.movePosition(
+                QTextCursor.MoveOperation.Right, 
+                QTextCursor.MoveMode.KeepAnchor, 
+                end_index - start_index
+            )
+            selection.format = error_format
+            selections.append(selection)
+
+        # Apply the highlights
+        editor.setExtraSelections(selections)
+
+
+    def _remove_grammar_error(self, start, end):
+        """Called by the CustomTextEditor to remove a specific error by span."""
+        current_editor = self.current_editor()
+        if not isinstance(current_editor, GrammarTextEdit):
+            return
+
+        # Filter out the error that matches the start/end indices
+        new_errors = []
+        for e_start, e_end, sugg in current_editor.grammar_errors:
+            if not (e_start == start and e_end == end):
+                new_errors.append((e_start, e_end, sugg))
+
+        current_editor.grammar_errors = new_errors
+
+    # Update current_editor to ensure it's the correct type for safety
+    def current_editor(self) -> GrammarTextEdit | None:
+        widget = self.tab_widget.currentWidget()
+        if isinstance(widget, GrammarTextEdit):
+            return widget
+        return None
+
+
+
 
 
 if __name__ == "__main__":
