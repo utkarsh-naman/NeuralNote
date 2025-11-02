@@ -23,6 +23,13 @@ from ops.edit.goto import goto_line
 
 from ui.custom_tab_bar import CustomTabBar
 
+# NEW IMPORTS
+import os # For checking ai directory existence
+if not os.path.exists('ai'):
+    os.makedirs('ai')
+from ai.aiselector import APIKeyManager, AISelectorDialog, AIPromptDialog 
+# END NEW IMPORTS
+
 
 
 class MainWindow(QMainWindow):
@@ -32,6 +39,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("NeuralNote")
         self.resize(1000, 700) 
         self.open_files = {} # To track file paths for saving
+
+        # NEW: Initialize API Key Manager
+        self.api_key_manager = APIKeyManager()
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #2b2b2b;
@@ -255,6 +265,21 @@ class MainWindow(QMainWindow):
         select_all_act.setShortcut(QKeySequence.StandardKey.SelectAll)
         select_all_act.triggered.connect(lambda: select_all(self))
         edit_menu.addAction(select_all_act)
+
+        # ---------- AI MENU (STEP 1: Placeholder in Menu Bar) ----------
+        ai_menu = menu_bar.addMenu("&AI")
+
+        # Action for the AI Selector (Step 2 & 3 functionality)
+        ai_selector_action = QAction("AI Model / API Key Selector...", self)
+        # Note: I'm not adding a shortcut to this, as it's a configuration window.
+        ai_selector_action.triggered.connect(self.open_ai_selector)
+        ai_menu.addAction(ai_selector_action)
+
+        # Action for the AI Prompt (Step 4 functionality)
+        ai_prompt_action = QAction("AI Prompt...", self)
+        ai_prompt_action.setShortcut(QKeySequence("Ctrl+Shift+A")) 
+        ai_prompt_action.triggered.connect(self.open_ai_prompt)
+        ai_menu.addAction(ai_prompt_action)
     
     def on_new_tab_action(self):
         # create_new_tab(self.tab_widget, self._updateStatusBar, "Untitled")
@@ -348,6 +373,23 @@ class MainWindow(QMainWindow):
             self.zoom_label.setText("100%")
             self.line_ending_label.setText("Windows (CRLF)")
             self.encoding_label.setText("UTF-8")
+
+    def open_ai_selector(self):
+        """Opens the AI Model and API Key selection dialog."""
+        dialog = AISelectorDialog(self.api_key_manager, self)
+        dialog.exec() # Use exec() to make it modal
+
+    def open_ai_prompt(self):
+        """Opens the AI prompt dialog (step 4)."""
+        editor = self.current_editor()
+        if not editor:
+            QMessageBox.warning(self, "No Tab", "Please open a tab before using the AI feature.")
+            return
+
+        dialog = AIPromptDialog(self)
+        if dialog.exec():
+            generated_text = dialog.generated_text
+            editor.insertPlainText(generated_text)
 
 
 if __name__ == "__main__":
